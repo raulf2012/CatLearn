@@ -1,17 +1,14 @@
 """Slab adsorbate fingerprint functions for machine learning."""
 import numpy as np
-import collections
 
 from ase.symbols import string2symbols
 from ase.data import ground_state_magnetic_moments as gs_magmom
 from ase.data import atomic_numbers, chemical_symbols
 
-from catlearn.featurize.periodic_table_data import (get_mendeleev_params,
-                                                    n_outer,
-                                                    list_mendeleev_params,
+from catlearn.featurize.periodic_table_data import (list_mendeleev_params,
                                                     default_params, get_radius,
                                                     electronegativities,
-                                                    block2number, make_labels)
+                                                    make_labels)
 from catlearn.featurize.base import BaseGenerator, check_labels
 
 
@@ -30,10 +27,10 @@ default_adsorbate_fingerprinters = ['mean_chemisorbed_atoms',
                                     'en_difference_active',
                                     'count_chemisorbed_fragment',
                                     'generalized_cn',
-                                    'coordination_counts',
+                                    'bag_cn',
                                     'bag_atoms_ads',
-                                    'bag_connections_ads',
-                                    'bag_connections_chemi']
+                                    'bag_edges_ads',
+                                    'bag_edges_chemi']
 
 extra_slab_params = ['atomic_radius',
                      'heat_of_formation',
@@ -115,6 +112,12 @@ class AdsorbateFingerprintGenerator(BaseGenerator):
         Parameters
         ----------
         atoms : object
+            ASE Atoms object.
+
+        Returns
+        ----------
+        features : list
+            If None was passed, the elements are strings, naming the feature.
         """
         labels = make_labels(self.slab_params, '', '_bulk')
         labels.append('ground_state_magmom_bulk')
@@ -144,10 +147,12 @@ class AdsorbateFingerprintGenerator(BaseGenerator):
         Parameters
         ----------
         atoms : object
+            ASE Atoms object.
 
         Returns
         ----------
-        result : list
+        features : list
+            If None was passed, the elements are strings, naming the feature.
         """
         extra_ads_params = ['atomic_radius', 'heat_of_formation',
                             'oxistates', 'block', 'econf', 'ionenergies']
@@ -175,6 +180,12 @@ class AdsorbateFingerprintGenerator(BaseGenerator):
         Parameters
         ----------
         atoms : object
+            ASE Atoms object.
+
+        Returns
+        ----------
+        features : list
+            If None was passed, the elements are strings, naming the feature.
         """
         labels = make_labels(self.slab_params, '', '_site_av')
         labels.append('ground_state_magmom_site_av')
@@ -196,6 +207,12 @@ class AdsorbateFingerprintGenerator(BaseGenerator):
         Parameters
         ----------
         atoms : object
+            ASE Atoms object.
+
+        Returns
+        ----------
+        features : list
+            If None was passed, the elements are strings, naming the feature.
         """
         labels = make_labels(self.slab_params, '', '_site_min')
         labels.append('ground_state_magmom_site_min')
@@ -217,6 +234,12 @@ class AdsorbateFingerprintGenerator(BaseGenerator):
         Parameters
         ----------
         atoms : object
+            ASE Atoms object.
+
+        Returns
+        ----------
+        features : list
+            If None was passed, the elements are strings, naming the feature.
         """
         labels = make_labels(self.slab_params, '', '_site_max')
         labels.append('ground_state_magmom_site_max')
@@ -238,6 +261,12 @@ class AdsorbateFingerprintGenerator(BaseGenerator):
         Parameters
         ----------
         atoms : object
+            ASE Atoms object.
+
+        Returns
+        ----------
+        features : list
+            If None was passed, the elements are strings, naming the feature.
         """
         labels = make_labels(self.slab_params, '', '_site_med')
         labels.append('ground_state_magmom_site_med')
@@ -258,7 +287,13 @@ class AdsorbateFingerprintGenerator(BaseGenerator):
 
         Parameters
         ----------
-            atoms : object
+        atoms : object
+            ASE Atoms object.
+
+        Returns
+        ----------
+        features : list
+            If None was passed, the elements are strings, naming the feature.
         """
         labels = make_labels(self.slab_params, '', '_site_sum')
         labels.append('ground_state_magmom_site_sum')
@@ -279,6 +314,12 @@ class AdsorbateFingerprintGenerator(BaseGenerator):
         Parameters
         ----------
         atoms : object
+            ASE Atoms object.
+
+        Returns
+        ----------
+        features : list
+            If None was passed, the elements are strings, naming the feature.
         """
         if atoms is None:
             return ['av_cn_site', 'cn_site', 'gcn_site', 'cn_ads1', 'gcn_ads1']
@@ -335,14 +376,27 @@ class AdsorbateFingerprintGenerator(BaseGenerator):
         return [av_cn_site, cn_site, gcn_site,
                 cn_chemi / len(chemi), gcn_chemi / len(chemi)]
 
-    def coordination_counts(self, atoms):
+    def bag_cn(self, atoms):
         """Count the number of neighbors of the site, which has a n number of
         neighbors. This is equivalent to a bag of coordination numbers over the
         site neighbors.
+        These can be used in the "alpha parameters" linear model.
+
+        Please cite:
+        Roling LT, Abild-Pedersen F.
+        Structure-Sensitive Scaling Relations:
+        Adsorption Energies from Surface Site Stability.
+        ChemCatChem. 2018 Apr 9;10(7):1643-50.
 
         Parameters
         ----------
         atoms : object
+            ASE Atoms object.
+
+        Returns
+        ----------
+        features : list
+            If None was passed, the elements are strings, naming the feature.
         """
         labels = ['count_' + str(j) + 'nn_site' for j in range(3, 31)]
         if atoms is None:
@@ -361,6 +415,25 @@ class AdsorbateFingerprintGenerator(BaseGenerator):
             fingerprint = list(fingerprint_nn)
             return fingerprint
 
+    def bag_cn_general(self, atoms):
+        """Count the number of neighbors of the site, which has a n number of
+        neighbors. This is equivalent to a bag of coordination numbers over the
+        site neighbors. These can be used in the "alpha parameters" linear
+        model for alloys.
+
+        Parameters
+        ----------
+        atoms : object
+            ASE Atoms object.
+
+        Returns
+        ----------
+        features : list
+            If None was passed, the elements are strings, naming the feature.
+        """
+        # range of element types.
+        raise NotImplementedError("In development.")
+
     def bag_atoms_ads(self, atoms=None):
         """Function that takes an atoms object and returns a fingerprint
         vector containing the count of each element in the
@@ -369,6 +442,12 @@ class AdsorbateFingerprintGenerator(BaseGenerator):
         Parameters
         ----------
         atoms : object
+            ASE Atoms object.
+
+        Returns
+        ----------
+        features : list
+            If None was passed, the elements are strings, naming the feature.
         """
         if atoms is None:
             try:
@@ -394,6 +473,12 @@ class AdsorbateFingerprintGenerator(BaseGenerator):
         Parameters
         ----------
         atoms : object
+            ASE Atoms object.
+
+        Returns
+        ----------
+        features : list
+            If None was passed, the elements are strings, naming the feature.
         """
         if atoms is None:
             labels = ['bag_chemi_nn_' + chemical_symbols[z] for z in
@@ -424,6 +509,12 @@ class AdsorbateFingerprintGenerator(BaseGenerator):
         Parameters
         ----------
         atoms : object
+            ASE Atoms object.
+
+        Returns
+        ----------
+        features : list
+            If None was passed, the elements are strings, naming the feature.
         """
         labels = ['nn_surf_ligands', 'identnn_surf_ligands']
         labels += make_labels(self.slab_params, '', '_surf_ligands')
@@ -449,6 +540,12 @@ class AdsorbateFingerprintGenerator(BaseGenerator):
         Parameters
         ----------
         atoms : object
+            ASE Atoms object.
+
+        Returns
+        ----------
+        features : list
+            If None was passed, the elements are strings, naming the feature.
         """
         ads_params = default_params + ['econf', 'ionenergies']
         labels = make_labels(ads_params, '', '_ads_sum')
@@ -470,6 +567,12 @@ class AdsorbateFingerprintGenerator(BaseGenerator):
         Parameters
         ----------
         atoms : object
+            ASE Atoms object.
+
+        Returns
+        ----------
+        features : list
+            If None was passed, the elements are strings, naming the feature.
         """
         ads_params = default_params + ['econf', 'ionenergies']
         labels = make_labels(ads_params, '', '_ads_av')
@@ -491,6 +594,12 @@ class AdsorbateFingerprintGenerator(BaseGenerator):
         Parameters
         ----------
         atoms : object
+            ASE Atoms object.
+
+        Returns
+        ----------
+        features : list
+            If None was passed, the elements are strings, naming the feature.
         """
         if atoms is None:
             return ['strain_site', 'strain_term']
@@ -533,13 +642,19 @@ class AdsorbateFingerprintGenerator(BaseGenerator):
             strain_term = (av_term - av_bulk) / av_bulk
             return [strain_site, strain_term]
 
-    def bag_connections_ads(self, atoms):
+    def bag_edges_ads(self, atoms):
         """Returns bag of connections, counting only the bonds within the
         adsorbate.
 
         Parameters
         ----------
         atoms : object
+            ASE Atoms object.
+
+        Returns
+        ----------
+        features : list
+            If None was passed, the elements are strings, naming the feature.
         """
         # range of element types
         n_elements = len(self.atom_types)
@@ -575,17 +690,24 @@ class AdsorbateFingerprintGenerator(BaseGenerator):
                 boc[bond_type] += 1
             return list(boc[np.triu_indices_from(boc)])
 
-    def bag_connections_chemi(self, atoms):
+    def bag_edges_chemi(self, atoms):
         """Returns bag of connections, counting only the bonds within the
         adsorbate and the connections between adsorbate and surface.
 
         Parameters
         ----------
         atoms : object
+            ASE Atoms object.
+
+        Returns
+        ----------
+        features : list
+            If None was passed, the elements are strings, naming the feature.
         """
         # range of element types
         n_elements = len(self.atom_types)
         symbols = np.array([chemical_symbols[z] for z in self.atom_types])
+        # Make array of connection types.
         rows, cols = np.meshgrid(symbols, symbols)
         pairs = np.core.defchararray.add(rows, cols)
         labels = ['boc_' + c + '_chemi' for c in
@@ -617,6 +739,63 @@ class AdsorbateFingerprintGenerator(BaseGenerator):
 
         return list(boc[np.triu_indices_from(boc)])
 
+    def bag_edges_all(self, atoms):
+        """Returns bag of connections, counting all bonds within the
+        adsorbate and between adsorbate atoms and surface. If we assign an
+        energy to each type of bond, considering first neighbors only,
+        this fingerprint would work independently in a linear model. The length
+        of the vector is atom_types * ads_atom_types.
+
+        Parameters
+        ----------
+        atoms : object
+            ASE Atoms object.
+
+        Returns
+        ----------
+        features : list
+            If None was passed, the elements are strings, naming the feature.
+        """
+        # number of element types.
+        n_elements = len(self.atom_types)
+        n_elements_ads = len(self.ads_atom_types)
+
+        # range of element types.
+        symbols = np.array([chemical_symbols[z] for z in self.atom_types])
+        ads_symbols = np.array([chemical_symbols[z] for z
+                                in self.ads_atom_types])
+
+        # Array of pairs.
+        rows, cols = np.meshgrid(symbols, ads_symbols)
+
+        # Add pairs to make labels.
+        pairs = np.core.defchararray.add(rows, cols)
+        labels = ['bea_' + c + '_ads' for c in
+                  pairs[np.triu_indices_from(pairs)]]
+        if atoms is None:
+            return labels
+        else:
+            # empty bag of connection types.
+            boc = np.zeros([n_elements_ads, n_elements])
+
+            natoms = len(atoms)
+            ads_atoms = atoms.subsets['ads_atoms']
+            # n_ads_atoms = len(atoms.subsets['ads_atoms'])
+            cm = np.array(atoms.connectivity)[ads_atoms, :]
+            np.fill_diagonal(cm, 0)
+
+            bonds = np.where(np.ravel(np.triu(cm)) > 0)[0]
+            for b in bonds:
+                # Get bonded atomic numbers.
+                z_ads, z_all = np.unravel_index(b, [natoms, natoms])
+                bond_index = (atoms.numbers[ads_atoms][z_ads],
+                              atoms.numbers[z_all])
+                bond_type = tuple((self.ads_atom_types.index(bond_index[0]),
+                                   self.atom_types.index(bond_index[1])))
+                # Count bonds in upper triangle.
+                boc[bond_type] += 1
+            return list(boc[np.triu_indices_from(boc)])
+
     def en_difference_ads(self, atoms=None):
         """Returns a list of electronegativity metrics, squared and summed over
         bonds within the adsorbate atoms.
@@ -624,6 +803,12 @@ class AdsorbateFingerprintGenerator(BaseGenerator):
         Parameters
         ----------
         atoms : object
+            ASE Atoms object.
+
+        Returns
+        ----------
+        features : list
+            If None was passed, the elements are strings, naming the feature.
         """
         labels = ['dist_' + s + '_ads' for s in electronegativities]
         if atoms is None:
@@ -646,6 +831,12 @@ class AdsorbateFingerprintGenerator(BaseGenerator):
         Parameters
         ----------
         atoms : object
+            ASE Atoms object.
+
+        Returns
+        ----------
+        features : list
+            If None was passed, the elements are strings, naming the feature.
         """
         labels = ['dist_' + s + '_chemi' for s in electronegativities]
         if atoms is None:
@@ -671,6 +862,12 @@ class AdsorbateFingerprintGenerator(BaseGenerator):
         Parameters
         ----------
         atoms : object
+            ASE Atoms object.
+
+        Returns
+        ----------
+        features : list
+            If None was passed, the elements are strings, naming the feature.
         """
         labels = ['dist_' + s + '_active' for s in electronegativities]
         if atoms is None:
@@ -690,169 +887,6 @@ class AdsorbateFingerprintGenerator(BaseGenerator):
         assert len(en_result) == len(labels)
         return en_result
 
-    def catapp_AB(self, atoms=None):
-        if atoms is None:
-            return ['atomic_number_m1',
-                    'atomic_volume_m1',
-                    'boiling_point_m1',
-                    'density_m1',
-                    'dipole_polarizability_m1',
-                    'electron_affinity_m1',
-                    'group_id_m1',
-                    'lattice_constant_m1',
-                    'melting_point_m1',
-                    'period_m1',
-                    'vdw_radius_m1',
-                    'covalent_radius_cordero_m1',
-                    'en_allen_m1',
-                    'atomic_weight_m1',
-                    'heat_of_formation_m1',
-                    #'dft_bulk_modulus_m1',
-                    #'dft_rhodensity_m1',
-                    #'dbcenter_m1',
-                    #'dbfilling_m1',
-                    #'dbwidth_m1',
-                    #'dbskew_m1',
-                    #'dbkurtosis_m1',
-                    'sblock_m1',
-                    'pblock_m1',
-                    'dblock_m1',
-                    'fblock_m1',
-                    'ne_outer_m1',
-                    'ne_s_m1',
-                    'ne_p_m1',
-                    'ne_d_m1',
-                    'ne_f_m1',
-                    'ionenergy_m1',
-                    'ground_state_magmom_m1',
-                    'atomic_number_m2',
-                    'atomic_volume_m2',
-                    'boiling_point_m2',
-                    'density_m2',
-                    'dipole_polarizability_m2',
-                    'electron_affinity_m2',
-                    'group_id_m2',
-                    'lattice_constant_m2',
-                    'melting_point_m2',
-                    'period_m2',
-                    'vdw_radius_m2',
-                    'covalent_radius_cordero_m2',
-                    'en_allen_m2',
-                    'atomic_weight_m2',
-                    'heat_of_formation_m2',
-                    #'dft_bulk_modulus_m2',
-                    #'dft_rhodensity_m2',
-                    #'dbcenter_m2',
-                    #'dbfilling_m2',
-                    #'dbwidth_m2',
-                    #'dbskew_m2',
-                    #'dbkurtosis_m1',
-                    'sblock_m2',
-                    'pblock_m2',
-                    'dblock_m2',
-                    'fblock_m2',
-                    'ne_outer_m2',
-                    'ne_s_m2',
-                    'ne_p_m2',
-                    'ne_d_m2',
-                    'ne_f_m2',
-                    'ionenergy_m2',
-                    'ground_state_magmom_m2',
-                    'atomic_number_sum',
-                    'atomic_volume_sum',
-                    'boiling_point_sum',
-                    'density_sum',
-                    'dipole_polarizability_sum',
-                    'electron_affinity_sum',
-                    'group_id_sum',
-                    'lattice_constant_sum',
-                    'melting_point_sum',
-                    'period_sum',
-                    'vdw_radius_sum',
-                    'covalent_radius_cordero_sum',
-                    'en_allen_sum',
-                    'atomic_weight_sum',
-                    'heat_of_formation_sum',
-                    #'dft_bulk_modulus_sum',
-                    #'dft_rhodensity_sum',
-                    #'dbcenter_sum',
-                    #'dbfilling_sum',
-                    #'dbwidth_sum',
-                    #'dbskew_sum',
-                    #'dbkurtosis_sum',
-                    'sblock_sum',
-                    'pblock_sum',
-                    'dblock_sum',
-                    'fblock_sum',
-                    'ne_outer_sum',
-                    'ne_s_sum',
-                    'ne_p_sum',
-                    'ne_d_sum',
-                    'ne_f_sum',
-                    'ionenergy_sum',
-                    'ground_state_magmom_sum',
-                    'concentration_catapp',
-                    'facet_catapp',
-                    'site_catapp']
-        else:
-            # Atomic numbers in the site.
-            Z_surf1_raw = [atoms.numbers[j]
-                           for j in atoms.subsets['ligand_atoms']]
-            # Sort by concentration
-            counts = collections.Counter(Z_surf1_raw)
-            Z_surf1 = sorted(Z_surf1_raw, key=counts.get, reverse=True)
-            z1 = Z_surf1[0]
-            z2 = Z_surf1[0]
-            for z in Z_surf1:
-                if z != z1:
-                    z2 = z
-            uu, ui = np.unique(Z_surf1, return_index=True)
-            if len(ui) == 1:
-                if Z_surf1[0] == z1:
-                    site = 1.
-                elif Z_surf1[0] == z2:
-                    site = 3.
-            else:
-                site = 2.
-            # Import overlayer composition from ase database.
-            kvp = atoms.info['key_value_pairs']
-            term = [atomic_numbers[zt] for zt in string2symbols(kvp['term'])]
-            termuu, termui = np.unique(term, return_index=True)
-            if '3' in kvp['term']:
-                conc = 3.
-            elif len(termui) == 1:
-                conc = 1.
-            elif len(termui) == 2:
-                conc = 2.
-            else:
-                raise NotImplementedError("catappAB only supports AxBy.")
-            text_params = default_params + ['heat_of_formation',
-                                            #'dft_bulk_modulus',
-                                            #'dft_density',
-                                            #'dbcenter',
-                                            #'dbfilling',
-                                            #'dbwidth',
-                                            #'dbskew',
-                                            #'dbkurt',
-                                            'block',
-                                            'econf',
-                                            'ionenergies']
-            f1 = get_mendeleev_params(z1, params=text_params)
-            f1 = f1[:-3] + block2number[f1[-3]] + \
-                list(n_outer(f1[-2])) + [f1[-1]['1']] + \
-                [float(gs_magmom[z1])]
-            if z1 == z2:
-                f2 = f1
-            else:
-                f2 = get_mendeleev_params(z2, params=text_params)
-                f2 = f2[:-3] + block2number[f2[-3]] + \
-                    list(n_outer(f2[-2])) + [f2[-1]['1']] + \
-                    [float(gs_magmom[z2])]
-            msum = list(np.nansum([f1, f2], axis=0, dtype=np.float))
-            facet = facetdict[kvp['facet'].replace(')', '').replace('(', '')]
-            fp = f1 + f2 + msum + [conc] + facet + [site]
-            return fp
-
     def delta_energy(self, atoms=None):
         """Return the contents of
         atoms.info['key_value_pairs']['delta_energy'] as a feature.
@@ -860,6 +894,12 @@ class AdsorbateFingerprintGenerator(BaseGenerator):
         Parameters
         ----------
         atoms : object
+            ASE Atoms object.
+
+        Returns
+        ----------
+        features : list
+            If None was passed, the elements are strings, naming the feature.
         """
         if atoms is None:
             return ['delta_energy']
@@ -877,7 +917,13 @@ class AdsorbateFingerprintGenerator(BaseGenerator):
 
         Parameters
         ----------
-            atoms : object
+        atoms : object
+            ASE Atoms object.
+
+        Returns
+        ----------
+        features : list
+            If None was passed, the elements are strings, naming the feature.
         """
         labels = ['layers', 'size', 'coverage']
         if atoms is None:
@@ -895,27 +941,18 @@ class AdsorbateFingerprintGenerator(BaseGenerator):
             coverage = np.true_divide(n, size)
             return layers, size, coverage
 
-    def name(self, atoms=None):
-        """Return a name for a datapoint based on the contents of
-        atoms.info['key_value_pairs'].
-
-        Parameters
-        ----------
-        atoms : object
-        """
-        if atoms is None:
-            return ['catapp_name']
-        else:
-            kvp = atoms.info['key_value_pairs']
-            name = kvp['species'] + '*' + kvp['name'] + kvp['facet']
-            return [name]
-
     def dbid(self, atoms=None):
         """Return the contents of atoms.info['id'] as a feature.
 
         Parameters
         ----------
         atoms : object
+            ASE Atoms object.
+
+        Returns
+        ----------
+        features : list
+            If None was passed, the elements are strings, naming the feature.
         """
         if atoms is None:
             return ['id']
@@ -930,6 +967,12 @@ class AdsorbateFingerprintGenerator(BaseGenerator):
         Parameters
         ----------
         atoms : object
+            ASE Atoms object.
+
+        Returns
+        ----------
+        features : list
+            If None was passed, the elements are strings, naming the feature.
         """
         if atoms is None:
             return ['time_float']

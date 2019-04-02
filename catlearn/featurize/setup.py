@@ -9,6 +9,7 @@ import pandas as pd
 from collections import defaultdict
 import multiprocessing
 from tqdm import tqdm
+from catlearn.fingerprint.molecule import AutoCorrelationFingerprintGenerator
 from catlearn.fingerprint.adsorbate import (AdsorbateFingerprintGenerator,
                                             default_adsorbate_fingerprinters)
 from catlearn.fingerprint.convoluted import (ConvolutedFingerprintGenerator,
@@ -22,7 +23,7 @@ from catlearn.fingerprint.bulk import (BulkFingerprintGenerator,
                                        default_bulk_fingerprinters)
 from catlearn.fingerprint.chalcogenide import \
     ChalcogenideFingerprintGenerator, default_chalcogenide_fingerprinters
-
+from catlearn.fingerprint.catapp import CatappFingerprintGenerator
 
 default_sets = {'bulk': default_bulk_fingerprinters,
                 'fragment': (default_molecule_fingerprinters +
@@ -59,7 +60,8 @@ class FeatureGenerator(
         AdsorbateFingerprintGenerator, ParticleFingerprintGenerator,
         StandardFingerprintGenerator, GraphFingerprintGenerator,
         BulkFingerprintGenerator, ConvolutedFingerprintGenerator,
-        ChalcogenideFingerprintGenerator):
+        ChalcogenideFingerprintGenerator, CatappFingerprintGenerator,
+        AutoCorrelationFingerprintGenerator):
     """Feature generator class.
 
     It is sometimes necessary to normalize the length of feature vectors when
@@ -159,8 +161,8 @@ class FeatureGenerator(
         ----------
         candidates : list or dict
             Atoms objects to construct fingerprints for.
-        vec_name : list of / single vec class(es)
-            List of fingerprinting classes.
+        vec_name : list
+            List of fingerprinting functions.
 
         Returns
         -------
@@ -204,13 +206,13 @@ class FeatureGenerator(
 
         Parameters
         ----------
-        vec_name : list of / single vec class(es)
-            List of fingerprinting classes.
+        vec_name : list
+            List of fingerprinting functions.
 
         Returns
         -------
         fingerprint_vector : ndarray
-          Name array.
+            Name array.
         """
         if not isinstance(vec_names, list):
             vec_names = [vec_names]
@@ -250,8 +252,8 @@ class FeatureGenerator(
         ----------
         atoms : object
             A single atoms object.
-        vec_name : list of / single vec class(es)
-            List of fingerprinting classes.
+        vec_name : list
+            List of fingerprinting functions.
         fps : list
             List of expected feature vector lengths.
 
@@ -303,6 +305,32 @@ class FeatureGenerator(
 
         self.atom_types = atom_types
 
+    def _get_ads_atom_types(self, train_candidates, test_candidates=None):
+        """Function to get all potential atomic types in data.
+
+        Parameters
+        ----------
+        train_candidates : list
+            List of atoms objects.
+        test_candidates : list
+            List of atoms objects.
+
+        Returns
+        -------
+        atom_types : list
+            Full list of atomic numbers in adsorbate atoms subsets.
+        """
+        train_candidates = list(train_candidates)
+        if test_candidates is not None:
+            train_candidates += list(test_candidates)
+        ads_atom_types = set()
+        for a in train_candidates:
+            ads_atom_types.update(
+                    set(a.get_atomic_numbers()[a.subsets['ads_atoms']]))
+        ads_atom_types = sorted(list(ads_atom_types))
+
+        self.ads_atom_types = ads_atom_types
+
     def _get_atom_length(self, train_candidates, test_candidates=None):
         """Function to get all potential system sizes in data.
 
@@ -336,8 +364,8 @@ class FeatureGenerator(
         ----------
         candidates : list or dict
             Atoms objects to construct fingerprints for.
-        vec_name : list of / single vec class(es)
-            List of fingerprinting classes.
+        vec_name : list
+            List of fingerprinting functions.
 
         Returns
         -------
